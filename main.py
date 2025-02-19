@@ -1,32 +1,43 @@
 import simpy
 import numpy as np
-from simulation import RelojDigitalFactory
+from simulation import DigitalWatchFactory
 from metrics import MetricsCollector
 
 def run_simulation(sim_time: int = 5000, runs: int = 100):
-    """Ejecuta múltiples simulaciones y recopila resultados"""
+    """!
+    @brief Run multiple simulation iterations and collect results
+    
+    @param sim_time Duration of each simulation run
+    @param runs Number of simulation runs to perform
+    @return Analyzed results from all simulation runs
+    """
     all_metrics = []
 
     for run in range(runs):
-        # Inicializa el entorno de SimPy y los recolectores de métricas
+        # Initialize SimPy environment and metrics collectors
         env = simpy.Environment()
         metrics = MetricsCollector()
-        factory = RelojDigitalFactory(env, metrics)
+        factory = DigitalWatchFactory(env, metrics)
         
-        # Ejecuta la simulación
+        # Run simulation
         env.run(until=sim_time)
         
-        # Recopila las métricas de esta corrida
+        # Collect metrics from this run
         run_metrics = metrics.get_metrics(sim_time)
         all_metrics.append(run_metrics)
 
-        print(f"Run {run + 1}: Producidos {run_metrics['production']['total']} relojes "
-              f"({run_metrics['production']['faulty']} defectuosos)")
+        print(f"Run {run + 1}: Produced {run_metrics['production']['total']} watches "
+              f"({run_metrics['production']['faulty']} faulty)")
 
     return analyze_results(all_metrics)
 
 def analyze_results(metrics_list):
-    """Analiza los datos de todas las corridas para obtener estadísticas"""
+    """!
+    @brief Analyze data from all simulation runs
+    
+    @param metrics_list List of metrics from all simulation runs
+    @return Dictionary containing aggregated statistics
+    """
     aggregated = {
         'production': {
             'total': [],
@@ -42,35 +53,41 @@ def analyze_results(metrics_list):
             'avg_fixing_time': []
         },
         'material_metrics': {
-            'circuitos_base': [],
-            'microcontroladores': [],
-            'pantallas_led': [],
-            'carcasa': [],
-            'baterias': []
+            'base_circuits': [],
+            'microcontrollers': [],
+            'led_displays': [],
+            'case': [],
+            'water_sealant': [],
+            'batteries': []
         }
     }
     
-    # Agrega datos de cada corrida a las listas correspondientes
+    # Aggregate data from each run
     for metrics in metrics_list:
-        # Producción
+        # Production metrics
         aggregated['production']['total'].append(metrics['production']['total'])
         aggregated['production']['faulty'].append(metrics['production']['faulty'])
         aggregated['production']['faulty_rate'].append(metrics['production']['faulty_rate'])
         
-        # Ocupación y tiempos de inactividad por estación
+        # Station metrics
         for i in range(6):
-            aggregated['station_metrics']['occupancy_rates'][i].append(metrics['station_metrics']['occupancy_rates'][i])
-            aggregated['station_metrics']['downtimes'][i].append(metrics['station_metrics']['downtimes'][i])
+            aggregated['station_metrics']['occupancy_rates'][i].append(
+                metrics['station_metrics']['occupancy_rates'][i])
+            aggregated['station_metrics']['downtimes'][i].append(
+                metrics['station_metrics']['downtimes'][i])
         
-        # Tiempos
-        aggregated['time_metrics']['avg_production_time'].append(metrics['time_metrics']['avg_production_time'])
-        aggregated['time_metrics']['avg_fixing_time'].append(metrics['time_metrics']['avg_fixing_time'])
+        # Time metrics
+        aggregated['time_metrics']['avg_production_time'].append(
+            metrics['time_metrics']['avg_production_time'])
+        aggregated['time_metrics']['avg_fixing_time'].append(
+            metrics['time_metrics']['avg_fixing_time'])
         
-        # Materiales utilizados
+        # Material metrics
         for material in aggregated['material_metrics']:
-            aggregated['material_metrics'][material].append(metrics['material_metrics']['materials_used'][material])
+            aggregated['material_metrics'][material].append(
+                metrics['material_metrics']['materials_used'][material])
 
-    # Calcula promedios y estadísticas
+    # Calculate final statistics
     results = {
         'production': {
             'avg_total': np.mean(aggregated['production']['total']),
@@ -87,43 +104,54 @@ def analyze_results(metrics_list):
             'avg_fixing_time': np.mean(aggregated['time_metrics']['avg_fixing_time'])
         },
         'material_metrics': {
-            'avg_circuitos_base': np.mean(aggregated['material_metrics']['circuitos_base']),
-            'avg_microcontroladores': np.mean(aggregated['material_metrics']['microcontroladores']),
-            'avg_pantallas_led': np.mean(aggregated['material_metrics']['pantallas_led']),
-            'avg_carcasas': np.mean(aggregated['material_metrics']['carcasa']),
-            'avg_baterias': np.mean(aggregated['material_metrics']['baterias'])
+            'avg_base_circuits': np.mean(aggregated['material_metrics']['base_circuits']),
+            'avg_microcontrollers': np.mean(aggregated['material_metrics']['microcontrollers']),
+            'avg_led_displays': np.mean(aggregated['material_metrics']['led_displays']),
+            'avg_cases': np.mean(aggregated['material_metrics']['case']),
+            'avg_water_sealant': np.mean(aggregated['material_metrics']['water_sealant']),
+            'avg_batteries': np.mean(aggregated['material_metrics']['batteries'])
         }
     }
 
     return results
 
 if __name__ == "__main__":
-    # Ejecuta la simulación y analiza resultados
+    """!
+    @brief Main execution entry point
+    
+    Runs the simulation and displays comprehensive results including:
+    - Production statistics
+    - Station metrics
+    - Time metrics
+    - Material usage
+    """
+    # Run simulation and analyze results
     results = run_simulation()
 
-    # Muestra los resultados generales
-    print("\n=== Resultados de la Simulación ===")
-    print(f"\nProducción Promedio: {results['production']['avg_total']:.2f} relojes")
-    print(f"Desviación Estándar de Producción: {results['production']['std_total']:.2f}")
-    print(f"Promedio de Defectuosos: {results['production']['avg_faulty']:.2f}")
-    print(f"Tasa Promedio de Defectos: {results['production']['avg_faulty_rate']:.2%}")
+    # Display general results
+    print("\n=== Simulation Results ===")
+    print(f"\nAverage Production: {results['production']['avg_total']:.2f} watches")
+    print(f"Production Standard Deviation: {results['production']['std_total']:.2f}")
+    print(f"Average Faulty Products: {results['production']['avg_faulty']:.2f}")
+    print(f"Average Fault Rate: {results['production']['avg_faulty_rate']:.2%}")
 
-    # Métricas por estación
-    print("\n=== Métricas por Estación ===")
+    # Station metrics
+    print("\n=== Station Metrics ===")
     for i in range(6):
-        print(f"\nEstación {i+1}:")
-        print(f"  Tasa de Ocupación: {results['station_metrics']['avg_occupancy_rates'][i]:.2%}")
-        print(f"  Tiempo de Inactividad: {results['station_metrics']['avg_downtimes'][i]:.2f} unidades")
+        print(f"\nStation {i+1}:")
+        print(f"  Occupancy Rate: {results['station_metrics']['avg_occupancy_rates'][i]:.2%}")
+        print(f"  Downtime: {results['station_metrics']['avg_downtimes'][i]:.2f} units")
 
-    # Tiempos generales
-    print("\n=== Tiempos ===")
-    print(f"Tiempo Promedio de Producción: {results['time_metrics']['avg_production_time']:.2f} unidades")
-    print(f"Tiempo Promedio de Reparación: {results['time_metrics']['avg_fixing_time']:.2f} unidades")
+    # Time metrics
+    print("\n=== Time Metrics ===")
+    print(f"Average Production Time: {results['time_metrics']['avg_production_time']:.2f} units")
+    print(f"Average Repair Time: {results['time_metrics']['avg_fixing_time']:.2f} units")
 
-    # Materiales utilizados
-    print("\n=== Materiales Utilizados ===")
-    print(f"Circuitos Base: {results['material_metrics']['avg_circuitos_base']:.2f} unidades")
-    print(f"Microcontroladores: {results['material_metrics']['avg_microcontroladores']:.2f} unidades")
-    print(f"Pantallas LED: {results['material_metrics']['avg_pantallas_led']:.2f} unidades")
-    print(f"Carcasas: {results['material_metrics']['avg_carcasas']:.2f} unidades")
-    print(f"Baterías: {results['material_metrics']['avg_baterias']:.2f} unidades")
+    # Material usage
+    print("\n=== Materials Used ===")
+    print(f"Base Circuits: {results['material_metrics']['avg_base_circuits']:.2f} units")
+    print(f"Microcontrollers: {results['material_metrics']['avg_microcontrollers']:.2f} units")
+    print(f"LED Displays: {results['material_metrics']['avg_led_displays']:.2f} units")
+    print(f"Cases: {results['material_metrics']['avg_cases']:.2f} units")
+    print(f"Water Sealant: {results['material_metrics']['avg_water_sealant']:.2f} units")
+    print(f"Batteries: {results['material_metrics']['avg_batteries']:.2f} units")

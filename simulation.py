@@ -2,102 +2,137 @@ import simpy
 import random
 from metrics import MetricsCollector
 
-class RelojDigitalFactory:
+class DigitalWatchFactory:
+    """!
+    @brief Digital Watch Factory Simulation Class
+    
+    Simulates a digital watch manufacturing facility with 6 workstations,
+    material management, and production flow control.
+    """
+
     def __init__(self, env, metrics):
+        """!
+        @brief Initialize the factory simulation
+        
+        @param env SimPy environment instance
+        @param metrics MetricsCollector instance for tracking factory performance
+        """
         self.env = env
         self.metrics = metrics
         
-        # Definición de materiales con 25 unidades por contenedor
-        self.materiales = {
-            'circuitos_base': 25,
-            'microcontroladores': 25,
-            'pantallas_led': 25,
-            'carcasa': 25,
-            'baterias': 25
+        # Materials with 25 units per container
+        self.materials = {
+            'base_circuits': 25,
+            'microcontrollers': 25,
+            'led_displays': 25,
+            'case': 25,
+            'water_sealant': 25,
+            'batteries': 25
         }
         
-        # Dispositivos de reabastecimiento
+        # Resupply devices
         self.resupply_devices = 3
         
-        # Definición de 6 estaciones de trabajo
-        self.estaciones = [
-            simpy.Resource(env, capacity=1),  # Estación 1: Preparación de circuitos
-            simpy.Resource(env, capacity=1),  # Estación 2: Integración de microcontrolador
-            simpy.Resource(env, capacity=1),  # Estación 3: Montaje de pantalla LED
-            simpy.Resource(env, capacity=1),  # Estación 4: Ensamblaje de carcasa
-            simpy.Resource(env, capacity=1),  # Estación 5: Ensamblaje de carcasa (intercambiable con 4)
-            simpy.Resource(env, capacity=1)   # Estación 6: Pruebas y empaque
+        # Work stations definition
+        self.stations = [
+            simpy.Resource(env, capacity=1),  # Station 1: Circuit preparation
+            simpy.Resource(env, capacity=1),  # Station 2: Microcontroller integration
+            simpy.Resource(env, capacity=1),  # Station 3: LED display assembly
+            simpy.Resource(env, capacity=1),  # Station 4: Case assembly
+            simpy.Resource(env, capacity=1),  # Station 5: Case assembly (interchangeable with 4)
+            simpy.Resource(env, capacity=1)   # Station 6: Testing and packaging
         ]
 
-        # Iniciar proceso de producción
-        self.env.process(self.proceso_produccion())
+        # Start production process
+        self.env.process(self.production_process())
 
-    def proceso_produccion(self):
-        """Genera nuevos relojes digitales de manera continua"""
+    def production_process(self):
+        """!
+        @brief Main production process that generates new watches continuously
+        """
         while True:
-            # Tiempo de llegada de un nuevo producto
             yield self.env.timeout(random.expovariate(1/4))
-            self.env.process(self.ensamblar_reloj())
+            self.env.process(self.assemble_watch())
 
-    def ensamblar_reloj(self):
-        """Proceso de ensamblaje de un reloj digital"""
-        inicio = self.env.now
+    def process_at_station(self, material: str, station: int):
+        """!
+        @brief Process a material at a specific station
         
-        # Secuencia de estaciones para ensamblar un reloj digital
-        secuencia = [
-            ('circuitos_base', 0),          # Estación 1
-            ('microcontroladores', 1),      # Estación 2
-            ('pantallas_led', 2),           # Estación 3
-            ('carcasa', random.choice([3, 4])),  # Estación 4 o 5
-            ('baterias', 5)                 # Estación 6
-        ]
+        @param material Material to be processed
+        @param station Station ID where processing will occur
+        """
+        # Check material availability
+        if self.materials[material] <= 0:
+            yield self.env.process(self.resupply(material))
+        
+        # Use material
+        self.materials[material] -= 1
+        self.metrics.record_material_use(material)
 
-        # Pasar por cada estación de la secuencia
-        for material, estacion in secuencia:
-            # Verificar si hay suficiente material, si no, reabastecer
-            if self.materiales[material] <= 0:
-                yield self.env.process(self.reabastecer(material))
+        # Request station access
+        with self.stations[station].request() as req:
+            yield req
             
-            # Usar material necesario
-            self.materiales[material] -= 1
-            self.metrics.record_material_use(material)
+            # Work time at station
+            work_time = max(0, random.gauss(4, 1))
+            yield self.env.timeout(work_time)
+            self.metrics.record_work_time(station, work_time)
 
-            # Solicitar acceso a la estación
-            with self.estaciones[estacion].request() as req:
-                yield req
-                
-                # Tiempo de trabajo en la estación
-                tiempo_trabajo = max(0, random.gauss(4, 1))
-                yield self.env.timeout(tiempo_trabajo)
-                self.metrics.record_work_time(estacion, tiempo_trabajo)
+            # Check for station failure
+            if random.random() < [0.02, 0.01, 0.05, 0.15, 0.07, 0.06][station]:
+                repair_time = random.expovariate(1/3)
+                yield self.env.timeout(repair_time)
+                self.metrics.record_fixing_time(station, repair_time)
 
-                # Verificar probabilidad de falla en la estación
-                if random.random() < [0.02, 0.01, 0.05, 0.15, 0.07, 0.06][estacion]:
-                    tiempo_reparacion = random.expovariate(1/3)
-                    yield self.env.timeout(tiempo_reparacion)
-                    self.metrics.record_fixing_time(estacion, tiempo_reparacion)
+    def assemble_watch(self):
+        """!
+        @brief Process for assembling a single watch
+        
+        Handles the complete assembly process through all stations,
+        including material usage, processing time, and quality control.
+        """
+        start = self.env.now
+        
+        # First 3 sequential steps
+        for material, station in [
+            ('base_circuits', 0),
+            ('microcontrollers', 1),
+            ('led_displays', 2)
+        ]:
+            yield self.env.process(self.process_at_station(material, station))
+        
+        # Case assembly can be at station 4 or 5
+        case_station = random.choice([3, 4])
+        yield self.env.process(self.process_at_station('case', case_station))
+        
+        # Water sealing at the unused station
+        next_station = 3 if case_station == 4 else 4
+        yield self.env.process(self.process_at_station('water_sealant', next_station))
+        
+        # Final station
+        yield self.env.process(self.process_at_station('batteries', 5))
 
-        # Registrar el tiempo total de producción
-        tiempo_total = self.env.now - inicio
-        self.metrics.record_production_time(tiempo_total)
+        # Record total production time
+        total_time = self.env.now - start
+        self.metrics.record_production_time(total_time)
         self.metrics.record_production()
         
-        # Probabilidad de rechazo por calidad
+        # Quality control check
         if random.random() < 0.05:
             self.metrics.record_faulty()
 
-    def reabastecer(self, material):
-        """Proceso de reabastecimiento cuando un material se agota"""
-        # Verificar si hay dispositivos disponibles para reabastecer
+    def resupply(self, material):
+        """!
+        @brief Handle material resupply process
+        
+        @param material Material to be resupplied
+        """
         if self.resupply_devices > 0:
-            self.resupply_devices -= 1  # Ocupa un dispositivo
-            tiempo_reabastecimiento =max(0, random.gauss(2, 0.5))   # Tiempo de reabastecimiento
-            yield self.env.timeout(tiempo_reabastecimiento)
+            self.resupply_devices -= 1
+            resupply_time = max(0, random.gauss(2, 0.5))
+            yield self.env.timeout(resupply_time)
             
-            # Reabastecer el material a 25 unidades
-            self.materiales[material] = 25
+            self.materials[material] = 25
             self.metrics.record_resupply(material)
             
-            # Liberar el dispositivo de reabastecimiento
             self.resupply_devices += 1
-
