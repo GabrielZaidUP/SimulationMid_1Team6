@@ -1,16 +1,12 @@
 import simpy
 import numpy as np
+import os
 from simulation import DigitalWatchFactory
 from metrics import MetricsCollector
+from data_preparation import DataPreparation
 
-def run_simulation(sim_time: int = 5000, runs: int = 100):
-    """!
-    @brief Run multiple simulation iterations and collect results
-    
-    @param sim_time Duration of each simulation run
-    @param runs Number of simulation runs to perform
-    @return Analyzed results from all simulation runs
-    """
+def run_simulation(sim_time=1000, runs=40, prepare_data=True):
+    """Run multiple simulation iterations and collect results"""
     all_metrics = []
 
     for run in range(runs):
@@ -29,15 +25,15 @@ def run_simulation(sim_time: int = 5000, runs: int = 100):
         print(f"Run {run + 1}: Produced {run_metrics['production']['total']} watches "
               f"({run_metrics['production']['faulty']} faulty)")
 
+    # Process the data for visualization if requested
+    if prepare_data:
+        data_prep = DataPreparation(output_path="dashboard_data")
+        data_prep.process_simulation_data(all_metrics)
+    
     return analyze_results(all_metrics)
 
 def analyze_results(metrics_list):
-    """!
-    @brief Analyze data from all simulation runs
-    
-    @param metrics_list List of metrics from all simulation runs
-    @return Dictionary containing aggregated statistics
-    """
+    """Analyze data from all simulation runs"""
     aggregated = {
         'production': {
             'total': [],
@@ -89,15 +85,17 @@ def analyze_results(metrics_list):
 
     # Calculate final statistics
     results = {
-        'production': {
+    'production': {
             'avg_total': np.mean(aggregated['production']['total']),
             'std_total': np.std(aggregated['production']['total']),
             'avg_faulty': np.mean(aggregated['production']['faulty']),
-            'avg_faulty_rate': np.mean(aggregated['production']['faulty_rate'])
+            'avg_faulty_rate': np.mean(aggregated['production']['faulty_rate']),
+            'production_range': max(aggregated['production']['total']) - min(aggregated['production']['total'])
         },
         'station_metrics': {
             'avg_occupancy_rates': [np.mean(rates) for rates in aggregated['station_metrics']['occupancy_rates']],
-            'avg_downtimes': [np.mean(downs) for downs in aggregated['station_metrics']['downtimes']]
+            'avg_downtimes': [np.mean(downs) for downs in aggregated['station_metrics']['downtimes']],
+            'avg_downtime_per_day': np.mean([sum(downs) / len(downs) for downs in aggregated['station_metrics']['downtimes']])
         },
         'time_metrics': {
             'avg_production_time': np.mean(aggregated['time_metrics']['avg_production_time']),
@@ -116,24 +114,22 @@ def analyze_results(metrics_list):
     return results
 
 if __name__ == "__main__":
-    """!
-    @brief Main execution entry point
+    """Main execution entry point"""
+    # Create dashboard data directory if it doesn't exist
+    if not os.path.exists("dashboard_data"):
+        os.makedirs("dashboard_data")
     
-    Runs the simulation and displays comprehensive results including:
-    - Production statistics
-    - Station metrics
-    - Time metrics
-    - Material usage
-    """
     # Run simulation and analyze results
-    results = run_simulation()
+    results = run_simulation(sim_time=1000, runs=40, prepare_data=True)
 
     # Display general results
     print("\n=== Simulation Results ===")
     print(f"\nAverage Production: {results['production']['avg_total']:.2f} watches")
+    print(f"\nProduction Range: {results['production']['production_range']} watches")
     print(f"Production Standard Deviation: {results['production']['std_total']:.2f}")
     print(f"Average Faulty Products: {results['production']['avg_faulty']:.2f}")
     print(f"Average Fault Rate: {results['production']['avg_faulty_rate']:.2%}")
+    print(f"\nAverage Downtime per Day: {results['station_metrics']['avg_downtime_per_day']:.2f} units")
 
     # Station metrics
     print("\n=== Station Metrics ===")
@@ -155,3 +151,7 @@ if __name__ == "__main__":
     print(f"Cases: {results['material_metrics']['avg_cases']:.2f} units")
     print(f"Water Sealant: {results['material_metrics']['avg_water_sealant']:.2f} units")
     print(f"Batteries: {results['material_metrics']['avg_batteries']:.2f} units")
+    
+    print("\n=== Dashboard ===")
+    print("Data has been prepared for visualization.")
+    print("Run 'python dashboard.py' to view the dashboard.")
