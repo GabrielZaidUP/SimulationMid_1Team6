@@ -1,7 +1,7 @@
 material,display_name,total_usage,total_resupply,avg_usage,avg_resupply
-base_circuits,Base Circuits,9957,541,248.925,13.525
-microcontrollers,Microcontrollers,9336,364,233.4,9.1
-led_displays,Led Displays,9184,356,229.6,8.9
-case,Case,9004,347,225.1,8.675
-water_sealant,Water Sealant,8637,392,215.925,9.8
-batteries,Batteries,8317,387,207.925,9.675
+base_circuits,Base Circuits,9855,528,246.375,13.2
+microcontrollers,Microcontrollers,9310,362,232.75,9.05
+led_displays,Led Displays,9195,367,229.875,9.175
+case,Case,8992,352,224.8,8.8
+water_sealant,Water Sealant,8638,391,215.95,9.775
+batteries,Batteries,8315,375,207.875,9.375
